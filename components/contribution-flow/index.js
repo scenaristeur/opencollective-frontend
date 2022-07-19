@@ -43,9 +43,14 @@ import ContributionFlowButtons from './ContributionFlowButtons';
 import ContributionFlowHeader from './ContributionFlowHeader';
 import ContributionFlowStepContainer from './ContributionFlowStepContainer';
 import ContributionFlowStepsProgress from './ContributionFlowStepsProgress';
+import ContributionFlowSuccess from './ContributionFlowSuccess';
 import ContributionSummary from './ContributionSummary';
 import { validateNewOrg } from './CreateOrganizationForm';
-import { ContributionFlowUrlQueryHelper, EmbedContributionFlowUrlQueryHelper } from './query-parameters';
+import {
+  ContributionFlowUrlQueryHelper,
+  EmbedContributionFlowUrlQueryHelper,
+  stepsDataToUrlParamsData,
+} from './query-parameters';
 import SafeTransactionMessage from './SafeTransactionMessage';
 import SignInToContributeAsAnOrganization from './SignInToContributeAsAnOrganization';
 import { validateGuestProfile } from './StepProfileGuestForm';
@@ -108,31 +113,31 @@ class ContributionFlow extends React.Component {
     host: PropTypes.object.isRequired,
     tier: PropTypes.object,
     intl: PropTypes.object,
-    queryParams: PropTypes.shape({
-      amount: PropTypes.number,
-      platformTip: PropTypes.number,
-      quantity: PropTypes.number,
-      interval: PropTypes.oneOf(['month', 'year']),
-      contributeAs: PropTypes.string,
-      email: PropTypes.string,
-      name: PropTypes.string,
-      hideCreditCardPostalCode: PropTypes.bool,
-      disabledPaymentMethodTypes: PropTypes.arrayOf(PropTypes.string),
-      redirect: PropTypes.string,
-      data: PropTypes.object,
-      tags: PropTypes.arrayOf(PropTypes.string),
-      hideFAQ: PropTypes.bool,
-      hideHeader: PropTypes.bool,
-      hideSteps: PropTypes.bool,
-      backgroundColor: PropTypes.bool,
-      useTheme: PropTypes.bool,
-      skipStepDetails: PropTypes.bool,
-    }),
+    // queryParams: PropTypes.shape({
+    //   amount: PropTypes.number,
+    //   platformTip: PropTypes.number,
+    //   quantity: PropTypes.number,
+    //   interval: PropTypes.oneOf(['month', 'year']),
+    //   contributeAs: PropTypes.string,
+    //   email: PropTypes.string,
+    //   name: PropTypes.string,
+    //   hideCreditCardPostalCode: PropTypes.bool,
+    //   disabledPaymentMethodTypes: PropTypes.arrayOf(PropTypes.string),
+    //   redirect: PropTypes.string,
+    //   data: PropTypes.object,
+    //   tags: PropTypes.arrayOf(PropTypes.string),
+    //   hideFAQ: PropTypes.bool,
+    //   hideHeader: PropTypes.bool,
+    //   hideSteps: PropTypes.bool,
+    //   backgroundColor: PropTypes.bool,
+    //   useTheme: PropTypes.bool,
+    //   skipStepDetails: PropTypes.bool,
+    // }),
     createOrder: PropTypes.func.isRequired,
     confirmOrder: PropTypes.func.isRequired,
     loadingLoggedInUser: PropTypes.bool,
     isEmbed: PropTypes.bool,
-    step: PropTypes.string,
+    // step: PropTypes.string,
     verb: PropTypes.string,
     paymentFlow: PropTypes.string,
     error: PropTypes.string,
@@ -150,9 +155,10 @@ class ContributionFlow extends React.Component {
     this.formRef = React.createRef();
     this.captchaRef = React.createRef();
 
-    const { queryParams, collective, tier } = props;
+    const { collective, tier } = props;
     const isCryptoFlow = props.paymentFlow === PAYMENT_FLOW.CRYPTO;
     const currency = isCryptoFlow ? CRYPTO_CURRENCIES[0] : tier?.amount?.currency || collective.currency;
+    const queryParams = this.getQueryParams();
 
     this.state = {
       error: null,
@@ -194,21 +200,36 @@ class ContributionFlow extends React.Component {
     }
 
     // Reflect state changes in the URL
-    const currentUrlState = this.props.queryParams;
-    const expectedUrlState = { amount: this.state.stepDetails.amount, interval: this.state.stepDetails.interval };
-    if (!isEqual(currentUrlState, omitBy(expectedUrlState, isNil))) {
-      const route = this.getRoute(this.props.step);
-      const queryHelper = this.getQueryHelper();
-      this.props.router.replace(
-        {
-          pathname: route,
-          query: omitBy(queryHelper.encode(expectedUrlState), isNil),
-        },
-        undefined,
-        { scroll: false, shallow: true },
-      );
+    const currentStepName = this.getCurrentStepName();
+    if (currentStepName !== STEPS.SUCCESS) {
+      const { stepDetails, stepProfile } = this.state;
+      const currentUrlState = this.getQueryParams();
+      const expectedUrlState = stepsDataToUrlParamsData(stepDetails, stepProfile);
+      // TODO: Infinite loop when setting `0` for amount
+      // TODO: contributeAs not working to select a profile you're an admin of
+      // TODO: Success step not working yet
+      // TODO: Check platform tip
+      // TODO: Always show summary step with tip input when linking directly to another step, show the tip input there (eventually in a separate PR)
+      if (!isEqual(currentUrlState, omitBy(expectedUrlState, isNil))) {
+        const route = this.getRoute(currentStepName);
+        const queryHelper = this.getQueryHelper();
+        this.props.router.replace(
+          {
+            pathname: route,
+            query: omitBy(queryHelper.encode(expectedUrlState), isNil),
+          },
+          null,
+          { scroll: false, shallow: true },
+        );
+      }
     }
   }
+
+  // TODO Move
+  // TODO Memoize
+  getQueryParams = () => {
+    return ContributionFlowUrlQueryHelper.decode(this.props.router.query);
+  };
 
   // ---- Order submission & error handling ----
 
@@ -255,7 +276,7 @@ class ContributionFlow extends React.Component {
             platformTipAmount: getGQLV2AmountInput(stepDetails.platformContribution, undefined),
             tier: this.props.tier && { legacyId: this.props.tier.legacyId },
             context: { isEmbed: this.props.isEmbed || false },
-            tags: this.props.queryParams.tags,
+            tags: this.getQueryParams().tags,
             taxes: stepSummary && [
               {
                 type: stepSummary.taxType,
@@ -327,8 +348,8 @@ class ContributionFlow extends React.Component {
     this.setState({ isSubmitted: true, isSubmitting: false });
     this.props.refetchLoggedInUser(); // to update memberships
 
-    if (isValidExternalRedirect(this.props.queryParams.redirect)) {
-      const url = new URL(this.props.queryParams.redirect);
+    if (isValidExternalRedirect(this.getQueryParams().redirect)) {
+      const url = new URL(this.getQueryParams().redirect);
       url.searchParams.set('orderId', order.legacyId);
       url.searchParams.set('orderIdV2', order.id);
       url.searchParams.set('status', order.status);
@@ -348,7 +369,7 @@ class ContributionFlow extends React.Component {
       }
     } else {
       const email = this.state.stepProfile?.email;
-      return this.pushStepRoute('success', { replace: true, query: { OrderId: order.id, email } });
+      return this.pushStepRoute('success', { replace: false, query: { OrderId: order.id, email } });
     }
   };
 
@@ -362,8 +383,9 @@ class ContributionFlow extends React.Component {
   getContributeProfiles = memoizeOne(getContributeProfiles);
 
   getDefaultStepProfile() {
-    const { LoggedInUser, collective, tier, queryParams } = this.props;
+    const { LoggedInUser, collective, tier } = this.props;
     const profiles = this.getContributeProfiles(LoggedInUser, collective, tier);
+    const queryParams = this.getQueryParams();
 
     // If there's a default profile slug, enforce it
     if (queryParams.contributeAs) {
@@ -383,6 +405,7 @@ class ContributionFlow extends React.Component {
       isGuest: true,
       email: queryParams.email || '',
       name: queryParams.name || '',
+      legalName: queryParams.legalName || '',
     };
   }
 
@@ -557,9 +580,10 @@ class ContributionFlow extends React.Component {
     }
 
     // Navigate to the new route
-    const { router, queryParams } = this.props;
+    const { router } = this.props;
+    const queryParams = this.getQueryParams();
     const queryHelper = this.getQueryHelper();
-    const encodedQueryParams = { ...queryHelper.encode(queryParams), ...newQueryParams };
+    const encodedQueryParams = newQueryParams || queryHelper.encode(queryParams);
     const route = this.getRoute(stepName === 'details' ? '' : stepName);
     const navigateFn = replace ? router.replace : router.push;
     await navigateFn({ pathname: route, query: omitBy(encodedQueryParams, value => !value) }, null, { shallow: true });
@@ -574,27 +598,28 @@ class ContributionFlow extends React.Component {
   getRoute = step => {
     const { collective, tier, isEmbed } = this.props;
     const verb = this.props.verb || 'donate';
+    const stepRoute = !step || step === STEPS.DETAILS ? '' : `/${step}`;
     if (isEmbed) {
       if (tier) {
-        return `/embed${getCollectivePageRoute(collective)}/contribute/${tier.slug}-${tier.legacyId}/${step}`;
+        return `/embed${getCollectivePageRoute(collective)}/contribute/${tier.slug}-${tier.legacyId}${stepRoute}`;
       } else {
-        return `/embed${getCollectivePageRoute(collective)}/donate/${step}`;
+        return `/embed${getCollectivePageRoute(collective)}/donate${stepRoute}`;
       }
     } else if (tier) {
       if (tier.type === 'TICKET' && collective.parent) {
-        return `${getCollectivePageRoute(collective)}/order/${tier.legacyId}/${step}`;
+        return `${getCollectivePageRoute(collective)}/order/${tier.legacyId}${stepRoute}`;
       } else {
         // Enforce "contribute" verb for ordering tiers
-        return `${getCollectivePageRoute(collective)}/contribute/${tier.slug}-${tier.legacyId}/checkout/${step}`;
+        return `${getCollectivePageRoute(collective)}/contribute/${tier.slug}-${tier.legacyId}/checkout${stepRoute}`;
       }
     } else if (verb === 'contribute' || verb === 'new-contribute') {
       // Never use `contribute` as verb if not using a tier (would introduce a route conflict)
-      return `${getCollectivePageRoute(collective)}/donate/${step}`;
+      return `${getCollectivePageRoute(collective)}/donate${stepRoute}`;
     } else if (verb === 'donate' && this.props.paymentFlow === PAYMENT_FLOW.CRYPTO) {
-      return `${getCollectivePageRoute(collective)}/donate/crypto/${step}`;
+      return `${getCollectivePageRoute(collective)}/donate/crypto${stepRoute}`;
     }
 
-    return `${getCollectivePageRoute(collective)}/${verb}/${step}`;
+    return `${getCollectivePageRoute(collective)}/${verb}${stepRoute}`;
   };
 
   scrollToTop = () => {
@@ -627,6 +652,10 @@ class ContributionFlow extends React.Component {
 
   checkFormValidity = () => {
     return reportValidityHTML5(this.formRef.current);
+  };
+
+  getCurrentStepName = () => {
+    return this.props.router.query.step || STEPS.DETAILS;
   };
 
   /** Returns the steps list */
@@ -795,7 +824,7 @@ class ContributionFlow extends React.Component {
 
   cryptoOrderCompleted = () => {
     const { createdOrder } = this.state;
-    this.pushStepRoute('success', { replace: true, query: { OrderId: createdOrder.id } });
+    this.pushStepRoute('success', { replace: false, query: { OrderId: createdOrder.id } });
   };
 
   render() {
@@ -806,7 +835,6 @@ class ContributionFlow extends React.Component {
       LoggedInUser,
       loadingLoggedInUser,
       isEmbed,
-      queryParams,
       paymentFlow,
       error: backendError,
     } = this.props;
@@ -816,11 +844,17 @@ class ContributionFlow extends React.Component {
     const isLoading = isCrypto ? isSubmitting : isSubmitted || isSubmitting;
     const pastEvent = collective.type === CollectiveType.EVENT && isPastEvent(collective);
     const shouldDisplayCaptcha = isCaptchaEnabled() && !LoggedInUser && stepPayment?.key === NEW_CREDIT_CARD_KEY;
+    const queryParams = this.getQueryParams();
+    const currentStepName = this.getCurrentStepName();
+
+    if (currentStepName === STEPS.SUCCESS) {
+      return <ContributionFlowSuccess collective={collective} />;
+    }
 
     return (
       <Steps
         steps={this.getSteps()}
-        currentStepName={this.props.step}
+        currentStepName={currentStepName}
         onStepChange={this.onStepChange}
         onComplete={isCrypto && isSubmitted ? this.cryptoOrderCompleted : this.submitOrder}
       >
@@ -846,7 +880,7 @@ class ContributionFlow extends React.Component {
             data-cy="cf-content"
             ref={this.mainContainerRef}
           >
-            {!this.props.queryParams.hideHeader && (
+            {!this.getQueryParams().hideHeader && (
               <Box px={[2, 3]} mb={4}>
                 <ContributionFlowHeader collective={collective} isEmbed={isEmbed} />
               </Box>

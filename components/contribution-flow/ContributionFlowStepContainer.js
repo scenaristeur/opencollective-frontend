@@ -1,13 +1,15 @@
 import React from 'react';
 import PropTypes from 'prop-types';
-import { defineMessages, injectIntl } from 'react-intl';
+import { defineMessages, FormattedMessage, injectIntl } from 'react-intl';
 
-import { Flex } from '../Grid';
+import { Box, Flex } from '../Grid';
+import StyledButton from '../StyledButton';
 import StyledCard from '../StyledCard';
 import StyledHr from '../StyledHr';
-import { H4 } from '../Text';
+import { H4, Span } from '../Text';
 import { withUser } from '../UserProvider';
 
+import ShareButton from './ShareButton';
 import StepCheckout from './StepCheckout';
 import StepDetails from './StepDetails';
 import StepDetailsCrypto from './StepDetailsCrypto';
@@ -156,7 +158,7 @@ class ContributionFlowStepContainer extends React.Component {
       <StyledCard p={[16, 32]} mx={[16, 'none']} borderRadius={15}>
         <Flex flexDirection="column" alignItems="center">
           {step.name !== 'checkout' && (
-            <Flex width="100%" mb={3}>
+            <Flex width="100%" mb={3} alignItems="center">
               <Flex alignItems="center">
                 <H4 fontSize={['20px', '24px']} fontWeight={500} py={2}>
                   {this.renderHeader(step.name, LoggedInUser)}
@@ -165,6 +167,9 @@ class ContributionFlowStepContainer extends React.Component {
               <Flex flexGrow={1} alignItems="center" justifyContent="center">
                 <StyledHr width="100%" ml={3} borderColor="black.300" />
               </Flex>
+              <Box ml={2}>
+                <ShareButton />
+              </Box>
             </Flex>
           )}
           {this.renderStep(step.name)}

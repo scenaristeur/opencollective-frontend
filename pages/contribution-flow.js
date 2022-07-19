@@ -23,7 +23,6 @@ import {
   contributionFlowAccountWithTierQuery,
 } from '../components/contribution-flow/graphql/queries';
 import ContributionFlowContainer from '../components/contribution-flow/index';
-import { ContributionFlowUrlQueryHelper } from '../components/contribution-flow/query-parameters';
 import { getContributionFlowMetadata } from '../components/contribution-flow/utils';
 import ErrorPage from '../components/ErrorPage';
 import Loading from '../components/Loading';
@@ -39,10 +38,8 @@ class NewContributionFlowPage extends React.Component {
       collectiveSlug: query.eventSlug || query.collectiveSlug,
       tierId: parseInt(query.tierId) || null,
       verb: query.verb,
-      step: query.step || 'details',
       paymentFlow: query.paymentFlow,
       // Query parameters
-      query,
       error: query.error,
     };
   }
@@ -63,9 +60,7 @@ class NewContributionFlowPage extends React.Component {
     loadStripe: PropTypes.func,
     LoggedInUser: PropTypes.object,
     loadingLoggedInUser: PropTypes.bool,
-    step: PropTypes.oneOf(Object.values(STEPS)),
     router: PropTypes.object,
-    query: PropTypes.object,
   };
 
   componentDidMount() {
@@ -96,7 +91,7 @@ class NewContributionFlowPage extends React.Component {
   }
 
   renderPageContent() {
-    const { data = {}, step, paymentFlow, LoggedInUser, error } = this.props;
+    const { data = {}, paymentFlow, LoggedInUser, error } = this.props;
     const { account, tier } = data;
     const isCrypto = paymentFlow === PAYMENT_FLOW.CRYPTO;
 
@@ -107,7 +102,7 @@ class NewContributionFlowPage extends React.Component {
         </Container>
       );
     }
-
+    const step = 'todo'; // TODO
     const contributionBlocker = getContributionBlocker(
       LoggedInUser,
       account,
@@ -128,10 +123,8 @@ class NewContributionFlowPage extends React.Component {
           collective={account}
           host={account.host}
           tier={tier}
-          step={step}
           verb={this.props.verb}
           paymentFlow={paymentFlow}
-          queryParams={ContributionFlowUrlQueryHelper.decode(this.props.query)}
           error={error}
         />
       );
