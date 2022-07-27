@@ -6,7 +6,7 @@ export const transactionsQueryCollectionFragment = gqlV2/* GraphQL */ `
     offset
     limit
     kinds
-    paymentMethod
+    paymentMethodTypes
     nodes {
       id
       uuid
