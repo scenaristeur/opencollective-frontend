@@ -346,10 +346,10 @@ class StyledUpdate extends Component {
                     <Avatar collective={fromAccount} radius={40} />
                   </LinkCollective>
                 </Container>
-                <Box>
+                  <Container width="100%" background={!update.publishedAt ? 'lightgrey' : ''}>
                   {this.renderUpdateTitle()}
                   {this.renderUpdateMeta(update, canEditUpdate, editable)}
-                </Box>
+                </Container>
               </Flex>
               {mode === 'summary' && this.renderSummary(update)}
               {mode === 'details' && this.renderFullContent()}
